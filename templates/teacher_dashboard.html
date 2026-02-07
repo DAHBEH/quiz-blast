@@ -11,7 +11,7 @@
 <body>
     <nav class="navbar">
         <div class="navbar-container">
-            <h1 class="navbar-brand">Quest Blast! - Teacher</h1>
+            <h1 class="navbar-brand">Quiz Blast! - Teacher</h1>
             <div class="navbar-menu">
                 <span id="userDisplay" class="user-display"></span>
                 <a href="{{ url_for('logout') }}" class="btn btn-secondary">Logout</a>
@@ -52,7 +52,6 @@
         </div>
     </div>
 
-    <!-- Modal for classroom management -->
     <div id="classroomModal" class="modal" style="display: none;">
         <div class="modal-content">
             <span class="close" onclick="closeClassroomModal()">&times;</span>
@@ -64,7 +63,6 @@
                 <button class="tab-button" onclick="switchTab('results')">Results</button>
             </div>
 
-            <!-- Quizzes Tab -->
             <div id="quizzesTab" class="tab-content active">
                 <h3>Create New Quiz</h3>
                 <form id="createQuizForm">
@@ -95,7 +93,6 @@
                 </form>
             </div>
 
-            <!-- Files Tab -->
             <div id="filesTab" class="tab-content">
                 <h3>Upload File</h3>
                 <form id="uploadFileForm" enctype="multipart/form-data">
@@ -124,7 +121,6 @@
                 <div id="filesList" class="files-list" style="margin-top: 20px;"></div>
             </div>
 
-            <!-- Results Tab -->
             <div id="resultsTab" class="tab-content">
                 <h3>Quiz Results</h3>
                 <div id="resultsList"></div>

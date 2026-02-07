@@ -14,7 +14,7 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
 
 ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'xlsx', 'xls', 'ppt', 'pptx', 'txt', 'jpg', 'jpeg', 'png', 'gif'}
 
-# Ensure upload folder exists
+# make sure na yung upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 def allowed_file(filename):
@@ -86,7 +86,7 @@ def init_db():
         FOREIGN KEY (quiz_id) REFERENCES quizzes(id)
     )''')
     
-    # Student answers
+    #  answers ng students
     c.execute('''CREATE TABLE IF NOT EXISTS answers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER NOT NULL,
@@ -100,7 +100,7 @@ def init_db():
         FOREIGN KEY (question_id) REFERENCES questions(id)
     )''')
     
-    # Quiz results
+    # ipakita ang result ng quiz
     c.execute('''CREATE TABLE IF NOT EXISTS quiz_results (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER NOT NULL,
@@ -279,7 +279,7 @@ def handle_classrooms():
         
         return jsonify({'success': True, 'id': classroom_id}), 201
     
-    # GET request
+    # i get ang  request
     search_query = request.args.get('search', '')
     
     conn = get_db()
@@ -307,7 +307,7 @@ def get_classroom(classroom_id):
         conn.close()
         return jsonify({'error': 'Classroom not found'}), 404
     
-    # Check if user has access
+    # i Check yung kung may access
     user = conn.execute('SELECT role FROM users WHERE id = ?', (session['user_id'],)).fetchone()
     
     if user['role'] == 'teacher' and classroom['teacher_id'] != session['user_id']:
@@ -413,7 +413,7 @@ def handle_quizzes(classroom_id):
         
         return jsonify({'success': True, 'id': quiz_id}), 201
     
-    # GET request
+    # get ang request
     quizzes = conn.execute('SELECT * FROM quizzes WHERE classroom_id = ?', (classroom_id,)).fetchall()
     conn.close()
     
@@ -431,7 +431,7 @@ def get_quiz(quiz_id):
     
     classroom = conn.execute('SELECT * FROM classrooms WHERE id = ?', (quiz['classroom_id'],)).fetchone()
     
-    # Check access
+    # Check ang access ng user access
     user = conn.execute('SELECT role FROM users WHERE id = ?', (session['user_id'],)).fetchone()
     
     if user['role'] == 'teacher' and classroom['teacher_id'] != session['user_id']:
@@ -610,7 +610,7 @@ def handle_files(classroom_id):
         
         return jsonify({'success': True}), 201
     
-    # GET request
+    # get ang request
     files = conn.execute('SELECT * FROM files WHERE classroom_id = ?', (classroom_id,)).fetchall()
     conn.close()
     
