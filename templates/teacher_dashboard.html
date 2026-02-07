@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="navbar-container">
+            <h1 class="navbar-brand">Quest Blast! - Teacher</h1>
+            <div class="navbar-menu">
+                <span id="userDisplay" class="user-display"></span>
+                <a href="{{ url_for('logout') }}" class="btn btn-secondary">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="dashboard-header">
+            <h2>Welcome to Teacher Dashboard</h2>
+        </div>
+
+        <div class="dashboard-content">
+            <section class="dashboard-section">
+                <h3>Create New Classroom</h3>
+                <form id="createClassroomForm">
+                    <div class="form-group">
+                        <label for="classroomName">Classroom Name:</label>
+                        <input type="text" id="classroomName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="classroomDesc">Description:</label>
+                        <textarea id="classroomDesc"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Create Classroom</button>
+                </form>
+                <div id="classroomError" class="error-message" style="display: none;"></div>
+                <div id="classroomSuccess" class="success-message" style="display: none;"></div>
+            </section>
+
+            <section class="dashboard-section">
+                <h3>My Classrooms</h3>
+                <div class="search-bar">
+                    <input type="text" id="classroomSearch" placeholder="Search classrooms...">
+                </div>
+                <div id="classroomsList" class="classrooms-list"></div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Modal for classroom management -->
+    <div id="classroomModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeClassroomModal()">&times;</span>
+            <h2 id="classroomModalTitle"></h2>
+
+            <div class="modal-tabs">
+                <button class="tab-button active" onclick="switchTab('quizzes')">Quizzes</button>
+                <button class="tab-button" onclick="switchTab('files')">Files</button>
+                <button class="tab-button" onclick="switchTab('results')">Results</button>
+            </div>
+
+            <!-- Quizzes Tab -->
+            <div id="quizzesTab" class="tab-content active">
+                <h3>Create New Quiz</h3>
+                <form id="createQuizForm">
+                    <div class="form-group">
+                        <label for="quizTitle">Quiz Title:</label>
+                        <input type="text" id="quizTitle" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="quizInstructions">Instructions:</label>
+                        <textarea id="quizInstructions"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="quizType">Quiz Type:</label>
+                        <select id="quizType" required>
+                            <option value="">Select type</option>
+                            <option value="multiple-choice">Multiple Choice</option>
+                            <option value="true-false">True/False</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="quizDeadline">Deadline:</label>
+                        <input type="datetime-local" id="quizDeadline">
+                    </div>
+
+                    <div id="questionsContainer"></div>
+                    <button type="button" class="btn btn-secondary" onclick="addQuestion()">Add Question</button>
+                    <button type="submit" class="btn btn-primary">Create Quiz</button>
+                </form>
+            </div>
+
+            <!-- Files Tab -->
+            <div id="filesTab" class="tab-content">
+                <h3>Upload File</h3>
+                <form id="uploadFileForm" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="fileInput">Choose File:</label>
+                        <input type="file" id="fileInput" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="fileName">Custom Name:</label>
+                        <input type="text" id="fileName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="fileTitle">Title:</label>
+                        <input type="text" id="fileTitle">
+                    </div>
+                    <div class="form-group">
+                        <label for="fileInstructions">Instructions:</label>
+                        <textarea id="fileInstructions"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="fileDeadline">Deadline:</label>
+                        <input type="datetime-local" id="fileDeadline">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Upload File</button>
+                </form>
+                <div id="filesList" class="files-list" style="margin-top: 20px;"></div>
+            </div>
+
+            <!-- Results Tab -->
+            <div id="resultsTab" class="tab-content">
+                <h3>Quiz Results</h3>
+                <div id="resultsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentClassroomId = null;
+
+        async function loadUserInfo() {
+            try {
+                const response = await fetch('/api/user-info');
+                const user = await response.json();
+                document.getElementById('userDisplay').textContent = `Welcome, ${user.username}`;
+            } catch (error) {
+                console.error('Error loading user info:', error);
+            }
+        }
+
+        async function loadClassrooms() {
+            const searchQuery = document.getElementById('classroomSearch').value;
+            try {
+                const response = await fetch(`/api/classrooms?search=${encodeURIComponent(searchQuery)}`);
+                const classrooms = await response.json();
+
+                const classroomsList = document.getElementById('classroomsList');
+                classroomsList.innerHTML = '';
+
+                classrooms.forEach(classroom => {
+                    const classroomDiv = document.createElement('div');
+                    classroomDiv.className = 'classroom-card';
+                    classroomDiv.innerHTML = `
+                        <h4>${classroom.name}</h4>
+                        <p>${classroom.description || ''}</p>
+                        <button onclick="openClassroom(${classroom.id}, '${classroom.name}')" class="btn btn-primary">Manage</button>
+                    `;
+                    classroomsList.appendChild(classroomDiv);
+                });
+            } catch (error) {
+                console.error('Error loading classrooms:', error);
+            }
+        }
+
+        function openClassroom(classroomId, classroomName) {
+            currentClassroomId = classroomId;
+            document.getElementById('classroomModalTitle').textContent = `Manage: ${classroomName}`;
+            document.getElementById('classroomModal').style.display = 'block';
+            switchTab('quizzes');
+            loadClassroomQuizzes();
+            loadClassroomFiles();
+        }
+
+        function closeClassroomModal() {
+            document.getElementById('classroomModal').style.display = 'none';
+        }
+
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName + 'Tab').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        async function loadClassroomQuizzes() {
+            try {
+                const response = await fetch(`/api/classrooms/${currentClassroomId}/quizzes`);
+                const quizzes = await response.json();
+
+                const resultsList = document.getElementById('resultsList');
+                resultsList.innerHTML = '<h4>Available Quizzes</h4>';
+
+                quizzes.forEach(quiz => {
+                    const quizDiv = document.createElement('div');
+                    quizDiv.className = 'quiz-item';
+                    quizDiv.innerHTML = `
+                        <h5>${quiz.title}</h5>
+                        <p>Type: ${quiz.quiz_type}</p>
+                        <p>Deadline: ${quiz.deadline || 'No deadline'}</p>
+                        <button onclick="viewQuizResults(${quiz.id})" class="btn btn-secondary">View Results</button>
+                    `;
+                    resultsList.appendChild(quizDiv);
+                });
+            } catch (error) {
+                console.error('Error loading quizzes:', error);
+            }
+        }
+
+        async function loadClassroomFiles() {
+            try {
+                const response = await fetch(`/api/classrooms/${currentClassroomId}/files`);
+                const files = await response.json();
+
+                const filesList = document.getElementById('filesList');
+                filesList.innerHTML = '<h4>Uploaded Files</h4>';
+
+                files.forEach(file => {
+                    const fileDiv = document.createElement('div');
+                    fileDiv.className = 'file-item';
+                    fileDiv.innerHTML = `
+                        <h5>${file.custom_name}</h5>
+                        <p>Title: ${file.title || 'N/A'}</p>
+                        <p>Deadline: ${file.deadline || 'No deadline'}</p>
+                        <a href="/api/files/${file.id}/download" class="btn btn-secondary">Download</a>
+                    `;
+                    filesList.appendChild(fileDiv);
+                });
+            } catch (error) {
+                console.error('Error loading files:', error);
+            }
+        }
+
+        async function viewQuizResults(quizId) {
+            try {
+                const response = await fetch(`/api/quizzes/${quizId}/results`);
+                const results = await response.json();
+
+                const resultsList = document.getElementById('resultsList');
+                resultsList.innerHTML = '<h4>Quiz Results</h4>';
+
+                if (Array.isArray(results)) {
+                    const table = document.createElement('table');
+                    table.className = 'results-table';
+                    table.innerHTML = `
+                        <thead>
+                            <tr>
+                                <th>Student Name</th>
+                                <th>Section</th>
+                                <th>Score</th>
+                                <th>Percentage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${results.map(r => `
+                                <tr>
+                                    <td>${r.student_name}</td>
+                                    <td>${r.section || 'N/A'}</td>
+                                    <td>${r.score}/${r.total}</td>
+                                    <td>${r.percentage.toFixed(2)}%</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    `;
+                    resultsList.appendChild(table);
+                } else {
+                    resultsList.innerHTML += '<p>No results available.</p>';
+                }
+            } catch (error) {
+                console.error('Error loading results:', error);
+            }
+        }
+
+        function addQuestion() {
+            const container = document.getElementById('questionsContainer');
+            const quizType = document.getElementById('quizType').value;
+            const questionIndex = container.children.length + 1;
+
+            if (!quizType) {
+                alert('Please select a quiz type first');
+                return;
+            }
+
+            const questionDiv = document.createElement('div');
+            questionDiv.className = 'question-form';
+            questionDiv.innerHTML = `
+                <h5>Question ${questionIndex}</h5>
+                <input type="text" placeholder="Question text" class="question-text" required>
+                ${quizType === 'multiple-choice' ? `
+                    <input type="text" placeholder="Option 1" class="option" required>
+                    <input type="text" placeholder="Option 2" class="option" required>
+                    <input type="text" placeholder="Option 3" class="option" required>
+                    <input type="text" placeholder="Option 4" class="option" required>
+                ` : ''}
+                <input type="text" placeholder="Correct answer" class="correct-answer" required>
+            `;
+            container.appendChild(questionDiv);
+        }
+
+        document.getElementById('createClassroomForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const name = document.getElementById('classroomName').value;
+            const description = document.getElementById('classroomDesc').value;
+
+            try {
+                const response = await fetch('/api/classrooms', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, description })
+                });
+
+                if (response.ok) {
+                    document.getElementById('classroomSuccess').textContent = 'Classroom created successfully!';
+                    document.getElementById('classroomSuccess').style.display = 'block';
+                    document.getElementById('createClassroomForm').reset();
+                    loadClassrooms();
+                    setTimeout(() => {
+                        document.getElementById('classroomSuccess').style.display = 'none';
+                    }, 3000);
+                }
+            } catch (error) {
+                console.error('Error creating classroom:', error);
+            }
+        });
+
+        document.getElementById('createQuizForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const title = document.getElementById('quizTitle').value;
+            const instructions = document.getElementById('quizInstructions').value;
+            const quiz_type = document.getElementById('quizType').value;
+            const deadline = document.getElementById('quizDeadline').value;
+
+            const questions = [];
+            document.querySelectorAll('.question-form').forEach(form => {
+                const question_text = form.querySelector('.question-text').value;
+                const options = Array.from(form.querySelectorAll('.option')).map(o => o.value).filter(o => o);
+                const correct_answer = form.querySelector('.correct-answer').value;
+
+                questions.push({
+                    question: question_text,
+                    type: quiz_type,
+                    options: options,
+                    correct_answer: correct_answer
+                });
+            });
+
+            try {
+                const response = await fetch(`/api/classrooms/${currentClassroomId}/quizzes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title, instructions, quiz_type, deadline, questions
+                    })
+                });
+
+                if (response.ok) {
+                    alert('Quiz created successfully!');
+                    document.getElementById('createQuizForm').reset();
+                    document.getElementById('questionsContainer').innerHTML = '';
+                    loadClassroomQuizzes();
+                }
+            } catch (error) {
+                console.error('Error creating quiz:', error);
+            }
+        });
+
+        document.getElementById('uploadFileForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData();
+            formData.append('file', document.getElementById('fileInput').files[0]);
+            formData.append('custom_name', document.getElementById('fileName').value);
+            formData.append('title', document.getElementById('fileTitle').value);
+            formData.append('instructions', document.getElementById('fileInstructions').value);
+            formData.append('deadline', document.getElementById('fileDeadline').value);
+
+            try {
+                const response = await fetch(`/api/classrooms/${currentClassroomId}/files`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    alert('File uploaded successfully!');
+                    document.getElementById('uploadFileForm').reset();
+                    loadClassroomFiles();
+                }
+            } catch (error) {
+                console.error('Error uploading file:', error);
+            }
+        });
+
+        document.getElementById('classroomSearch').addEventListener('input', loadClassrooms);
+
+
+        loadUserInfo();
+        loadClassrooms();
+
+
+        window.onclick = function (event) {
+            const modal = document.getElementById('classroomModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        };
+    </script>
+</body>
+
+</html>

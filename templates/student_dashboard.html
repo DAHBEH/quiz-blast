@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="navbar-container">
+            <h1 class="navbar-brand">Quest Blast! - Student</h1>
+            <div class="navbar-menu">
+                <span id="userDisplay" class="user-display"></span>
+                <a href="{{ url_for('logout') }}" class="btn btn-secondary">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="dashboard-header">
+            <h2>Welcome to Student Dashboard </h2>
+        </div>
+
+        <div class="dashboard-content">
+            <section class="dashboard-section">
+                <h3>Search & Join Classroom</h3>
+                <div class="search-bar">
+                    <input type="text" id="searchClassroom" placeholder="Search classroom by name...">
+                </div>
+                <div id="searchResults" class="classrooms-list"></div>
+
+                <div id="joinClassroomModal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <span class="close" onclick="closeJoinModal()">&times;</span>
+                        <h2>Join Classroom</h2>
+                        <form id="joinForm">
+                            <div class="form-group">
+                                <label for="section">Enter Your Section:</label>
+                                <input type="text" id="section" placeholder="e.g., 10A, 11B" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Join</button>
+                        </form>
+                        <div id="joinError" class="error-message" style="display: none;"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="dashboard-section">
+                <h3>My Classrooms</h3>
+                <div class="search-bar">
+                    <input type="text" id="myClassroomSearch" placeholder="Search my classrooms...">
+                </div>
+                <div id="myClassroomsList" class="classrooms-list"></div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Classroom View Modal -->
+    <div id="classroomViewModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeClassroomView()">&times;</span>
+            <h2 id="classroomViewTitle"></h2>
+
+            <div class="modal-tabs">
+                <button class="tab-button active" onclick="switchTab('quizzesView')">Quizzes</button>
+                <button class="tab-button" onclick="switchTab('filesView')">Files</button>
+            </div>
+
+            <!-- Quizzes View Tab -->
+            <div id="quizzesViewTab" class="tab-content active">
+                <div id="quizzesList"></div>
+            </div>
+
+            <!-- Files View Tab -->
+            <div id="filesViewTab" class="tab-content">
+                <div id="filesViewList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quiz Taking Modal -->
+    <div id="quizModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeQuizModal()">&times;</span>
+            <h2 id="quizTitle"></h2>
+            <p id="quizInstructions"></p>
+            <p id="questionCounter"></p>
+
+            <div id="questionDisplay"></div>
+
+            <div id="timerDisplay" class="timer"></div>
+
+            <div class="quiz-buttons">
+                <button onclick="previousQuestion()" class="btn btn-secondary">Previous</button>
+                <button onclick="nextQuestion()" class="btn btn-secondary">Next</button>
+                <button onclick="submitQuiz()" class="btn btn-primary">Submit Quiz</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Modal -->
+    <div id="resultsModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeResultsModal()">&times;</span>
+            <h2>Quiz Results</h2>
+            <div id="resultsDisplay"></div>
+            <button onclick="closeResultsModal()" class="btn btn-primary">Close</button>
+        </div>
+    </div>
+
+    <script>
+        let currentClassroomId = null;
+        let currentQuizId = null;
+        let currentQuestionIndex = 0;
+        let quizQuestions = [];
+        let quizAnswers = {};
+        let questionTimer = null;
+        let timeRemaining = 50;
+
+        async function loadUserInfo() {
+            try {
+                const response = await fetch('/api/user-info');
+                const user = await response.json();
+                document.getElementById('userDisplay').textContent = `Welcome, ${user.username} (${user.section || 'No Section'})`;
+            } catch (error) {
+                console.error('Error loading user info:', error);
+            }
+        }
+
+        async function searchClassrooms() {
+            const searchQuery = document.getElementById('searchClassroom').value;
+
+            if (searchQuery.length < 1) {
+                document.getElementById('searchResults').innerHTML = '';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/classrooms/search?q=${encodeURIComponent(searchQuery)}`);
+                const classrooms = await response.json();
+
+                const searchResults = document.getElementById('searchResults');
+                searchResults.innerHTML = '';
+
+                classrooms.forEach(classroom => {
+                    const classroomDiv = document.createElement('div');
+                    classroomDiv.className = 'classroom-card';
+                    classroomDiv.innerHTML = `
+                        <h4>${classroom.name}</h4>
+                        <p>${classroom.description || ''}</p>
+                        <button onclick="openJoinModal(${classroom.id})" class="btn btn-primary">Join</button>
+                    `;
+                    searchResults.appendChild(classroomDiv);
+                });
+            } catch (error) {
+                console.error('Error searching classrooms:', error);
+            }
+        }
+
+        function openJoinModal(classroomId) {
+            currentClassroomId = classroomId;
+            document.getElementById('joinClassroomModal').style.display = 'block';
+        }
+
+        function closeJoinModal() {
+            document.getElementById('joinClassroomModal').style.display = 'none';
+        }
+
+        document.getElementById('joinForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const section = document.getElementById('section').value;
+
+            try {
+                const response = await fetch(`/api/classrooms/${currentClassroomId}/join`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ section })
+                });
+
+                if (response.ok) {
+                    alert('Successfully joined classroom!');
+                    closeJoinModal();
+                    loadMyClassrooms();
+                    document.getElementById('joinForm').reset();
+                } else {
+                    const data = await response.json();
+                    document.getElementById('joinError').textContent = data.error;
+                    document.getElementById('joinError').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error joining classroom:', error);
+            }
+        });
+
+        async function loadMyClassrooms() {
+            const searchQuery = document.getElementById('myClassroomSearch').value;
+            try {
+                const response = await fetch(`/api/classrooms?search=${encodeURIComponent(searchQuery)}`);
+                const classrooms = await response.json();
+
+                const classroomsList = document.getElementById('myClassroomsList');
+                classroomsList.innerHTML = '';
+
+                classrooms.forEach(classroom => {
+                    const classroomDiv = document.createElement('div');
+                    classroomDiv.className = 'classroom-card';
+                    classroomDiv.innerHTML = `
+                        <h4>${classroom.name}</h4>
+                        <button onclick="openClassroomView(${classroom.id}, '${classroom.name}')" class="btn btn-primary">View</button>
+                    `;
+                    classroomsList.appendChild(classroomDiv);
+                });
+            } catch (error) {
+                console.error('Error loading classrooms:', error);
+            }
+        }
+
+        function openClassroomView(classroomId, classroomName) {
+            currentClassroomId = classroomId;
+            document.getElementById('classroomViewTitle').textContent = classroomName;
+            document.getElementById('classroomViewModal').style.display = 'block';
+            switchTab('quizzesView');
+            loadClassroomQuizzes();
+            loadClassroomFiles();
+        }
+
+        function closeClassroomView() {
+            document.getElementById('classroomViewModal').style.display = 'none';
+        }
+
+        async function loadClassroomQuizzes() {
+            try {
+                const response = await fetch(`/api/classrooms/${currentClassroomId}/quizzes`);
+                const quizzes = await response.json();
+
+                const quizzesList = document.getElementById('quizzesList');
+                quizzesList.innerHTML = '';
+
+                quizzes.forEach(quiz => {
+                    const quizDiv = document.createElement('div');
+                    quizDiv.className = 'quiz-item';
+
+                    const deadlineText = quiz.deadline ? `Deadline: ${new Date(quiz.deadline).toLocaleString()}` : 'No deadline';
+
+                    quizDiv.innerHTML = `
+                        <h5>${quiz.title}</h5>
+                        <p>${quiz.instructions}</p>
+                        <p>Type: ${quiz.quiz_type}</p>
+                        <p>${deadlineText}</p>
+                        <button onclick="startQuiz(${quiz.id}, '${quiz.title}', ${quiz.questions ? quiz.questions.length : 0})" class="btn btn-primary">Take Quiz</button>
+                    `;
+                    quizzesList.appendChild(quizDiv);
+                });
+            } catch (error) {
+                console.error('Error loading quizzes:', error);
+            }
+        }
+
+        async function loadClassroomFiles() {
+            try {
+                const response = await fetch(`/api/classrooms/${currentClassroomId}/files`);
+                const files = await response.json();
+
+                const filesViewList = document.getElementById('filesViewList');
+                filesViewList.innerHTML = '';
+
+                files.forEach(file => {
+                    const fileDiv = document.createElement('div');
+                    fileDiv.className = 'file-item';
+
+                    const deadlineText = file.deadline ? `Deadline: ${new Date(file.deadline).toLocaleString()}` : 'No deadline';
+
+                    fileDiv.innerHTML = `
+                        <h5>${file.custom_name}</h5>
+                        <p>Title: ${file.title || 'N/A'}</p>
+                        <p>Instructions: ${file.instructions || 'None'}</p>
+                        <p>${deadlineText}</p>
+                        <a href="/api/files/${file.id}/download" class="btn btn-secondary">Download File</a>
+                    `;
+                    filesViewList.appendChild(fileDiv);
+                });
+            } catch (error) {
+                console.error('Error loading files:', error);
+            }
+        }
+
+        async function startQuiz(quizId, quizTitle, questionCount) {
+            currentQuizId = quizId;
+            currentQuestionIndex = 0;
+            quizAnswers = {};
+
+            try {
+                const response = await fetch(`/api/quizzes/${quizId}`);
+                const quiz = await response.json();
+
+                quizQuestions = quiz.questions;
+
+                document.getElementById('quizTitle').textContent = quizTitle;
+                document.getElementById('quizInstructions').textContent = quiz.instructions || '';
+                document.getElementById('quizModal').style.display = 'block';
+
+                displayQuestion();
+                startTimer();
+            } catch (error) {
+                console.error('Error loading quiz:', error);
+            }
+        }
+
+        function displayQuestion() {
+            if (currentQuestionIndex >= quizQuestions.length) {
+                currentQuestionIndex = quizQuestions.length - 1;
+            }
+
+            const question = quizQuestions[currentQuestionIndex];
+            document.getElementById('questionCounter').textContent = `Question ${currentQuestionIndex + 1} of ${quizQuestions.length}`;
+
+            let questionHTML = `<div class="question">
+                <p><strong>${question.question_text}</strong></p>`;
+
+            if (question.question_type === 'multiple-choice') {
+                questionHTML += `<div class="options">`;
+                question.options.forEach(option => {
+                    const isSelected = quizAnswers[question.id] === option ? 'checked' : '';
+                    questionHTML += `
+                        <label>
+                            <input type="radio" name="answer_${question.id}" value="${option}" ${isSelected} onchange="saveAnswer(${question.id}, '${option}')">
+                            ${option}
+                        </label>
+                    `;
+                });
+                questionHTML += `</div>`;
+            } else if (question.question_type === 'true-false') {
+                const trueSelected = quizAnswers[question.id] === 'true' ? 'checked' : '';
+                const falseSelected = quizAnswers[question.id] === 'false' ? 'checked' : '';
+                questionHTML += `
+                    <label>
+                        <input type="radio" name="answer_${question.id}" value="true" ${trueSelected} onchange="saveAnswer(${question.id}, 'true')">
+                        True
+                    </label>
+                    <label>
+                        <input type="radio" name="answer_${question.id}" value="false" ${falseSelected} onchange="saveAnswer(${question.id}, 'false')">
+                        False
+                    </label>
+                `;
+            }
+
+            questionHTML += `</div>`;
+            document.getElementById('questionDisplay').innerHTML = questionHTML;
+        }
+
+        function saveAnswer(questionId, answer) {
+            quizAnswers[questionId] = answer;
+        }
+
+        function startTimer() {
+            timeRemaining = 50;
+            if (questionTimer) clearInterval(questionTimer);
+
+            questionTimer = setInterval(() => {
+                timeRemaining--;
+                document.getElementById('timerDisplay').textContent = `Time: ${timeRemaining}s`;
+
+                if (timeRemaining <= 0) {
+                    clearInterval(questionTimer);
+                    nextQuestion();
+                }
+            }, 1000);
+        }
+
+        function nextQuestion() {
+            if (currentQuestionIndex < quizQuestions.length - 1) {
+                currentQuestionIndex++;
+                displayQuestion();
+                startTimer();
+            }
+        }
+
+        function previousQuestion() {
+            if (currentQuestionIndex > 0) {
+                currentQuestionIndex--;
+                displayQuestion();
+                startTimer();
+            }
+        }
+
+        async function submitQuiz() {
+            if (!confirm('Are you sure you want to submit this quiz?')) return;
+
+            const answers = {};
+            quizQuestions.forEach(q => {
+                answers[q.id] = quizAnswers[q.id] || '';
+            });
+
+            try {
+                const response = await fetch(`/api/quizzes/${currentQuizId}/submit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ answers })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    closeQuizModal();
+                    showResults(data);
+                    loadClassroomQuizzes();
+                }
+            } catch (error) {
+                console.error('Error submitting quiz:', error);
+            }
+        }
+
+        function showResults(result) {
+            const resultsDisplay = document.getElementById('resultsDisplay');
+            resultsDisplay.innerHTML = `
+                <h3>Your Score: ${result.score}/${result.total}</h3>
+                <h3>Percentage: ${result.percentage.toFixed(2)}%</h3>
+            `;
+            document.getElementById('resultsModal').style.display = 'block';
+        }
+
+        function closeQuizModal() {
+            document.getElementById('quizModal').style.display = 'none';
+            if (questionTimer) clearInterval(questionTimer);
+        }
+
+        function closeResultsModal() {
+            document.getElementById('resultsModal').style.display = 'none';
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            document.getElementById(tabName + 'Tab').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        document.getElementById('searchClassroom').addEventListener('input', searchClassrooms);
+        document.getElementById('myClassroomSearch').addEventListener('input', loadMyClassrooms);
+
+        // Initial load
+        loadUserInfo();
+        loadMyClassrooms();
+
+        // Close modals when clicking outside
+        window.onclick = function (event) {
+            const joinModal = document.getElementById('joinClassroomModal');
+            const classroomModal = document.getElementById('classroomViewModal');
+            const quizModal = document.getElementById('quizModal');
+            const resultsModal = document.getElementById('resultsModal');
+
+            if (event.target === joinModal) joinModal.style.display = 'none';
+            if (event.target === classroomModal) classroomModal.style.display = 'none';
+            if (event.target === quizModal) quizModal.style.display = 'none';
+            if (event.target === resultsModal) resultsModal.style.display = 'none';
+        };
+    </script>
+</body>
+
+</html>
