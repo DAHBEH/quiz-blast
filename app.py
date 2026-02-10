@@ -279,7 +279,7 @@ def handle_classrooms():
         
         return jsonify({'success': True, 'id': classroom_id}), 201
     
-    # i get ang  request
+    
     search_query = request.args.get('search', '')
     
     conn = get_db()
@@ -482,6 +482,13 @@ def submit_quiz(quiz_id):
         conn.close()
         return jsonify({'error': 'Only students can submit quizzes'}), 403
     
+    # Check if student has already submitted this quiz
+    existing_result = conn.execute('SELECT * FROM quiz_results WHERE student_id = ? AND quiz_id = ?',
+                                  (session['user_id'], quiz_id)).fetchone()
+    if existing_result:
+        conn.close()
+        return jsonify({'error': 'You have already submitted this quiz. You can only submit once.'}), 400
+    
     data = request.get_json()
     answers = data.get('answers', {})
     
@@ -503,7 +510,7 @@ def submit_quiz(quiz_id):
     
     percentage = (score / total * 100) if total > 0 else 0
     
-    c.execute('INSERT OR REPLACE INTO quiz_results (student_id, quiz_id, score, total_questions, percentage) VALUES (?, ?, ?, ?, ?)',
+    c.execute('INSERT INTO quiz_results (student_id, quiz_id, score, total_questions, percentage) VALUES (?, ?, ?, ?, ?)',
              (session['user_id'], quiz_id, score, total, percentage))
     
     conn.commit()

@@ -398,14 +398,18 @@
                     body: JSON.stringify({ answers })
                 });
 
+                const data = await response.json();
+
                 if (response.ok) {
-                    const data = await response.json();
                     closeQuizModal();
                     showResults(data);
                     loadClassroomQuizzes();
+                } else {
+                    alert(data.error || 'Error submitting quiz');
                 }
             } catch (error) {
                 console.error('Error submitting quiz:', error);
+                alert('An error occurred while submitting the quiz');
             }
         }
 
