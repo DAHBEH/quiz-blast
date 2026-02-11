@@ -10,7 +10,7 @@ body {
     background-image: url("image.png");
     background-size: 420px;
     background-repeat: no-repeat;
-    background-position: left center;
+    background-position: center;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 
 }
@@ -26,7 +26,8 @@ body {
 
 
 .navbar {
-    background: linear-gradient(135deg, #667eea 0%, #231c8a 100%);
+    background: linear-gradient(135deg, rgb(122, 27, 199) 0%, rgb(0, 153, 255) 100%);
+    background-size: 1500px;
     padding: 15px 0;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     margin-bottom: 30px;
@@ -36,18 +37,23 @@ body {
 }
 
 .navbar-container {
+
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+
+
 }
 
 .navbar-brand {
+
     color: white;
     font-size: 24px;
     font-weight: 600;
+
 }
 
 .navbar-menu {
@@ -59,11 +65,14 @@ body {
 .user-display {
     color: white;
     font-weight: 500;
+
+
 }
 
 
 .auth-container {
     background: white;
+    opacity: 0.92;
     padding: 40px;
     border-radius: 10px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
@@ -101,7 +110,7 @@ body {
 .form-group select {
     width: 100%;
     padding: 12px;
-    border: 1px solid #ddd;
+    border: 1px solid #000000;
     border-radius: 5px;
     font-size: 14px;
     transition: border-color 0.3s;
@@ -141,24 +150,25 @@ body {
 }
 
 .btn-primary:hover {
+    background: rgb(26, 133, 26);
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
 }
 
 .btn-secondary {
-    background: #2e84d4;
+    background: blueviolet;
     color: white;
     border-color: white;
 }
 
 .btn-secondary:hover {
-    background: #5a6268;
+    background: rgb(26, 133, 26);
     transform: translateY(-2px);
 }
 
 
 .error-message {
-    background: #000000;
+    background: white;
     color: #721c24;
     padding: 15px;
     border-radius: 5px;
@@ -167,7 +177,7 @@ body {
 }
 
 .success-message {
-    background: #d4edda;
+    background: skyblue;
     color: #155724;
     padding: 15px;
     border-radius: 5px;
@@ -193,6 +203,10 @@ body {
 
 .dashboard-header {
     background: white;
+    background-image: url('image.jpg');
+    background-repeat: no-repeat;
+    background-position: 20px center;
+    background-size: 80px;
     padding: 30px;
     border-radius: 10px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
@@ -203,6 +217,7 @@ body {
 .dashboard-header h2 {
     color: #667eea;
     font-size: 32px;
+
 }
 
 .dashboard-content {
