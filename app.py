@@ -10,8 +10,8 @@ from functools import wraps
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-this-in-production'
 app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  
-
+app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024 #200mb lang yung max ng file size na pwedeng i upload  
+#mga extensions na pwedeng i download o i upload
 ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'xlsx', 'xls', 'ppt', 'pptx', 'txt', 'jpg', 'jpeg', 'png', 'gif'}
 
 # make sure na yung upload folder exists
@@ -29,7 +29,7 @@ def init_db():
     conn = get_db()
     c = conn.cursor()
     
-    # Users table
+    # user database
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
@@ -40,7 +40,7 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
-    # Classrooms table
+    # Classrooms database
     c.execute('''CREATE TABLE IF NOT EXISTS classrooms (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -50,7 +50,7 @@ def init_db():
         FOREIGN KEY (teacher_id) REFERENCES users(id)
     )''')
     
-    # Student enrollment
+    # Student enrollment database
     c.execute('''CREATE TABLE IF NOT EXISTS enrollments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER NOT NULL,
@@ -62,7 +62,7 @@ def init_db():
         UNIQUE(student_id, classroom_id)
     )''')
     
-    # Quizzes table
+    # database for quizess save
     c.execute('''CREATE TABLE IF NOT EXISTS quizzes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         classroom_id INTEGER NOT NULL,
@@ -74,7 +74,7 @@ def init_db():
         FOREIGN KEY (classroom_id) REFERENCES classrooms(id)
     )''')
     
-    # Quiz questions
+    # database for questions
     c.execute('''CREATE TABLE IF NOT EXISTS questions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         quiz_id INTEGER NOT NULL,
@@ -86,7 +86,7 @@ def init_db():
         FOREIGN KEY (quiz_id) REFERENCES quizzes(id)
     )''')
     
-    #  answers ng students
+    #  database for answers
     c.execute('''CREATE TABLE IF NOT EXISTS answers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER NOT NULL,
@@ -100,7 +100,7 @@ def init_db():
         FOREIGN KEY (question_id) REFERENCES questions(id)
     )''')
     
-    # ipakita ang result ng quiz
+    # database for results
     c.execute('''CREATE TABLE IF NOT EXISTS quiz_results (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER NOT NULL,
@@ -114,7 +114,7 @@ def init_db():
         UNIQUE(student_id, quiz_id)
     )''')
     
-    # Files table
+    # database para sa files uploaded
     c.execute('''CREATE TABLE IF NOT EXISTS files (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         classroom_id INTEGER NOT NULL,
@@ -167,7 +167,7 @@ def index():
         else:
             return redirect(url_for('student_dashboard'))
     return redirect(url_for('login'))
-
+#display ang login page
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -193,7 +193,7 @@ def register():
             return jsonify({'error': 'Username or email already exists'}), 400
     
     return render_template('register.html')
-
+#display ang login page
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -213,17 +213,17 @@ def login():
         return jsonify({'error': 'Invalid username or password'}), 401
     
     return render_template('login.html')
-
+#logout functions redirect to the main login page
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('login'))
-
+#display the interface for teacher dashboard
 @app.route('/teacher/dashboard')
 @teacher_required
 def teacher_dashboard():
     return render_template('teacher_dashboard.html')
-
+#display the interface of student dashboard
 @app.route('/student/dashboard')
 @login_required
 def student_dashboard():
@@ -235,7 +235,7 @@ def student_dashboard():
         return redirect(url_for('teacher_dashboard'))
     
     return render_template('student_dashboard.html')
-
+#for user info
 @app.route('/api/user-info')
 @login_required
 def get_user_info():
@@ -250,7 +250,7 @@ def get_user_info():
         'role': user['role'],
         'section': user['section']
     })
-
+#for creating classroom
 @app.route('/api/classrooms', methods=['GET', 'POST'])
 @login_required
 def handle_classrooms():
@@ -307,7 +307,7 @@ def get_classroom(classroom_id):
         conn.close()
         return jsonify({'error': 'Classroom not found'}), 404
     
-    # i Check yung kung may access
+    
     user = conn.execute('SELECT role FROM users WHERE id = ?', (session['user_id'],)).fetchone()
     
     if user['role'] == 'teacher' and classroom['teacher_id'] != session['user_id']:
@@ -369,7 +369,7 @@ def search_classrooms():
     conn.close()
     
     return jsonify([dict(c) for c in classrooms])
-
+#show UI inside of classrooom created by teachers
 @app.route('/api/classrooms/<int:classroom_id>/quizzes', methods=['GET', 'POST'])
 @login_required
 def handle_quizzes(classroom_id):
@@ -413,12 +413,12 @@ def handle_quizzes(classroom_id):
         
         return jsonify({'success': True, 'id': quiz_id}), 201
     
-    # get ang request
+   
     quizzes = conn.execute('SELECT * FROM quizzes WHERE classroom_id = ?', (classroom_id,)).fetchall()
     conn.close()
     
     return jsonify([dict(q) for q in quizzes])
-
+#for deleting and editing quiz
 @app.route('/api/quizzes/<int:quiz_id>', methods=['PUT', 'DELETE'])
 @login_required
 def modify_quiz(quiz_id):
@@ -471,7 +471,7 @@ def modify_quiz(quiz_id):
         conn.close()
         return jsonify({'success': True}), 200
 
-
+#main quiz 
 @app.route('/api/quizzes/<int:quiz_id>')
 @login_required
 def get_quiz(quiz_id):
@@ -518,7 +518,7 @@ def get_quiz(quiz_id):
     
     conn.close()
     return jsonify(quiz_data)
-
+#for submiting quiz
 @app.route('/api/quizzes/<int:quiz_id>/submit', methods=['POST'])
 @login_required
 def submit_quiz(quiz_id):
@@ -535,7 +535,8 @@ def submit_quiz(quiz_id):
         conn.close()
         return jsonify({'error': 'Only students can submit quizzes'}), 403
     
-    # Check if student has already submitted this quiz
+    #check ang student if nakapag submit na ng quiz 
+    #this block of codes avoid retaking quiz if ang student ay nakapag take na ng isang beses
     existing_result = conn.execute('SELECT * FROM quiz_results WHERE student_id = ? AND quiz_id = ?',
                                   (session['user_id'], quiz_id)).fetchone()
     if existing_result:
@@ -557,7 +558,7 @@ def submit_quiz(quiz_id):
         
         if is_correct:
             score += 1
-        
+        # this block of codes show ang score at percentage ng student
         c.execute('INSERT INTO answers (student_id, quiz_id, question_id, answer, is_correct) VALUES (?, ?, ?, ?, ?)',
                  (session['user_id'], quiz_id, q['id'], student_answer, is_correct))
     
@@ -570,7 +571,7 @@ def submit_quiz(quiz_id):
     conn.close()
     
     return jsonify({'success': True, 'score': score, 'total': total, 'percentage': percentage}), 201
-
+#show quiz results
 @app.route('/api/quizzes/<int:quiz_id>/results')
 @login_required
 def get_quiz_results(quiz_id):
@@ -624,7 +625,7 @@ def get_quiz_results(quiz_id):
     
     conn.close()
     return jsonify(results_data)
-
+#show and search classrooms
 @app.route('/api/classrooms/<int:classroom_id>/files', methods=['GET', 'POST'])
 @login_required
 def handle_files(classroom_id):
@@ -670,12 +671,12 @@ def handle_files(classroom_id):
         
         return jsonify({'success': True}), 201
     
-    # get ang request
+    
     files = conn.execute('SELECT * FROM files WHERE classroom_id = ?', (classroom_id,)).fetchall()
     conn.close()
     
     return jsonify([dict(f) for f in files])
-
+#for file downloading
 @app.route('/api/files/<int:file_id>/download')
 @login_required
 def download_file(file_id):
@@ -708,7 +709,7 @@ def download_file(file_id):
         return jsonify({'error': 'File not found on server'}), 404
     
     return send_file(filepath, as_attachment=True, download_name=file_record['original_filename'])
-
+#run the web app
 if __name__ == '__main__':
     init_db()
     app.run(debug=True, host='0.0.0.0', port=5000)
