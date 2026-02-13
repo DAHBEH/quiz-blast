@@ -612,7 +612,7 @@
         // Also prevent right-click context menu
         document.getElementById('quizModal').addEventListener('contextmenu', function (e) {
             e.preventDefault();
-            showAntiCheatMessage('Right-click is disabled during the quiz!');
+            showAntiCheatMessage('Copying is disabled during the quiz!');
         });
 
         // Prevent keyboard shortcuts for copy/paste
@@ -622,7 +622,7 @@
                 // Ctrl+C, Ctrl+X, Ctrl+V, Ctrl+U (view source), Ctrl+S (save)
                 if (e.ctrlKey && (e.key === 'c' || e.key === 'x' || e.key === 'v' || e.key === 'u' || e.key === 's')) {
                     e.preventDefault();
-                    showAntiCheatMessage('Keyboard shortcut disabled during quiz!');
+                    showAntiCheatMessage('Copying and keyboard shorcuts is disabled during quiz!');
                 }
             }
         });
