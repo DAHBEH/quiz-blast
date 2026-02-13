@@ -37,9 +37,9 @@
                         <span class="close" onclick="closeJoinModal()">&times;</span>
                         <h2>Join Classroom</h2>
                         <form id="joinForm">
-                            <div class="form-group">
-                                <label for="section">Enter Your Section:</label>
-                                <input type="text" id="section" placeholder="e.g., 10A, 11B" required>
+                            <div class="form-group" id="passwordGroup">
+                                <label for="joinPassword">Enter Classroom Password:</label>
+                                <input type="password" id="joinPassword" placeholder="Enter password to join">
                             </div>
                             <button type="submit" class="btn btn-primary">Join</button>
                         </form>
@@ -88,7 +88,42 @@
 
             <div id="questionDisplay"></div>
 
-            <div id="timerDisplay" class="timer"></div>
+            <div id="timerDisplay" class="timer">
+                <div class="bomb-container">
+                    <svg class="bomb-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Bomb body -->
+                        <ellipse cx="50" cy="65" rx="30" ry="35" fill="#333" />
+                        <!-- Bomb top -->
+                        <ellipse cx="50" cy="30" rx="30" ry="10" fill="#444" />
+                        <!-- Highlight -->
+                        <ellipse cx="40" cy="55" rx="10" ry="15" fill="#555" transform="rotate(-20 40 55)" />
+                        <!-- Fuse base -->
+                        <rect x="45" y="15" width="10" height="15" fill="#666" />
+                        <!-- Fuse -->
+                        <path class="fuse" d="M50 15 Q55 5 50 -5 Q45 5 50 15" fill="none" stroke="#8B4513"
+                            stroke-width="3" />
+                        <!-- Spark -->
+                        <circle class="spark" cx="50" cy="-8" r="5" fill="#FF4500">
+                            <animate attributeName="opacity" values="1;0.3;1" dur="0.3s" repeatCount="indefinite" />
+                            <animate attributeName="r" values="5;8;5" dur="0.3s" repeatCount="indefinite" />
+                        </circle>
+                        <!-- Skull icon on bomb -->
+                        <circle cx="50" cy="60" r="15" fill="#ddd" />
+                        <ellipse cx="50" cy="75" rx="12" ry="8" fill="#ddd" />
+                        <circle cx="45" cy="58" r="3" fill="#333" />
+                        <circle cx="55" cy="58" r="3" fill="#333" />
+                        <rect x="47" y="70" width="2" height="5" fill="#333" />
+                        <rect x="51" y="70" width="2" height="5" fill="#333" />
+                    </svg>
+                    <div class="bomb-timer" id="bombTimer">50</div>
+                </div>
+                <div class="timer-text" id="timerText">Time Remaining</div>
+            </div>
+
+            <audio id="tickingSound" preload="auto">
+                <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA="
+                    type="audio/wav">
+            </audio>
 
             <div class="quiz-buttons">
                 <button onclick="nextQuestion()" class="btn btn-secondary">Next</button>
@@ -167,13 +202,13 @@
         document.getElementById('joinForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            const section = document.getElementById('section').value;
+            const password = document.getElementById('joinPassword').value;
 
             try {
                 const response = await fetch(`/api/classrooms/${currentClassroomId}/join`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ section })
+                    body: JSON.stringify({ password })
                 });
 
                 if (response.ok) {
@@ -351,19 +386,26 @@
             quizAnswers[questionId] = answer;
         }
 
-        function startTimer() {
-            timeRemaining = 50;
-            if (questionTimer) clearInterval(questionTimer);
+        function playTickSound() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
 
-            questionTimer = setInterval(() => {
-                timeRemaining--;
-                document.getElementById('timerDisplay').textContent = `Ang oras mo ay tumatakbo: ${timeRemaining}s`;
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
 
-                if (timeRemaining <= 0) {
-                    clearInterval(questionTimer);
-                    nextQuestion();
-                }
-            }, 1000);
+                oscillator.frequency.value = 100;
+                oscillator.type = 'sawtooth';
+
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.3);
+            } catch (e) {
+                console.log('Audio not supported');
+            }
         }
 
         function nextQuestion() {
@@ -371,6 +413,9 @@
                 currentQuestionIndex++;
                 displayQuestion();
                 startTimer();
+            } else {
+                // Last question answered, auto-submit
+                submitQuiz();
             }
         }
 
@@ -455,6 +500,62 @@
             if (event.target === quizModal) quizModal.style.display = 'none';
             if (event.target === resultsModal) resultsModal.style.display = 'none';
         };
+    </script>
+    <script>
+        function playBeepSound() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                oscillator.frequency.value = 1200;
+                oscillator.type = 'sine';
+
+                gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.3);
+            } catch (e) {
+                console.log('Audio not supported');
+            }
+        }
+
+        function startTimer() {
+            timeRemaining = 50;
+            if (questionTimer) clearInterval(questionTimer);
+
+            document.getElementById('bombTimer').textContent = timeRemaining;
+            document.getElementById('bombTimer').classList.remove('urgent');
+            document.querySelector('.bomb-icon').classList.remove('explode');
+
+            questionTimer = setInterval(() => {
+                timeRemaining--;
+                document.getElementById('bombTimer').textContent = timeRemaining;
+
+                playTickSound();
+
+                if (timeRemaining === 10) {
+                    playBeepSound();
+                }
+
+                if (timeRemaining <= 10) {
+                    document.getElementById('bombTimer').classList.add('urgent');
+                }
+
+                if (timeRemaining <= 0) {
+                    clearInterval(questionTimer);
+                    document.querySelector('.bomb-icon').classList.add('explode');
+                    playExplosionSound();
+                    setTimeout(() => {
+                        nextQuestion();
+                    }, 500);
+                }
+            }, 1000);
+        }
     </script>
 </body>
 

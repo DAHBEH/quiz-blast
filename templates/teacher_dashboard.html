@@ -29,13 +29,14 @@
                 <h3>Create New Classroom</h3>
                 <form id="createClassroomForm">
                     <div class="form-group">
-                        <label for="classroomName">Classroom Name:</label>
+                        <label for="classroomName">GRADE & SECTION:</label>
                         <input type="text" id="classroomName" required>
                     </div>
                     <div class="form-group">
-                        <label for="classroomDesc">Description:</label>
-                        <textarea id="classroomDesc"></textarea>
+                        <label for="classroomPassword">Classroom Password (Optional):</label>
+                        <input type="password" id="classroomPassword" placeholder="Leave blank for no password">
                     </div>
+
                     <button type="submit" class="btn btn-primary">Create Classroom</button>
                 </form>
                 <div id="classroomError" class="error-message" style="display: none;"></div>
@@ -60,6 +61,7 @@
             <div class="modal-tabs">
                 <button class="tab-button active" onclick="switchTab('quizzes')">Quizzes</button>
                 <button class="tab-button" onclick="switchTab('files')">Files</button>
+                <button class="tab-button" onclick="switchTab('students')">Students</button>
                 <button class="tab-button" onclick="switchTab('results')">Results</button>
             </div>
 
@@ -121,6 +123,11 @@
                 <div id="filesList" class="files-list" style="margin-top: 20px;"></div>
             </div>
 
+            <div id="studentsTab" class="tab-content">
+                <h3>Enrolled Students</h3>
+                <div id="studentsList" class="students-list"></div>
+            </div>
+
             <div id="resultsTab" class="tab-content">
                 <h3>Quiz Results</h3>
                 <div id="resultsList"></div>
@@ -157,7 +164,12 @@
                     classroomDiv.innerHTML = `
                         <h4>${classroom.name}</h4>
                         <p>${classroom.description || ''}</p>
-                        <button onclick="openClassroom(${classroom.id}, '${classroom.name}')" class="btn btn-primary">Manage</button>
+                        <p><strong>Password:</strong> ${classroom.password ? '****' : 'None'}</p>
+                        <div class="classroom-actions">
+                            <button onclick="openClassroom(${classroom.id}, '${classroom.name}')" class="btn btn-primary">Manage</button>
+                            <button onclick="editClassroom(${classroom.id}, '${classroom.name}', '${classroom.description || ''}', '${classroom.password || ''}')" class="btn btn-secondary">Edit</button>
+                            <button onclick="deleteClassroom(${classroom.id})" class="btn btn-danger">Delete</button>
+                        </div>
                     `;
                     classroomsList.appendChild(classroomDiv);
                 });
@@ -173,6 +185,7 @@
             switchTab('quizzes');
             loadClassroomQuizzes();
             loadClassroomFiles();
+            loadEnrolledStudents();
         }
 
         function closeClassroomModal() {
@@ -271,6 +284,96 @@
             }
         }
 
+        function editClassroom(id, name, description, password) {
+            const newName = prompt('Enter new classroom name:', name);
+            if (!newName) return;
+
+            const newDesc = prompt('Enter new description:', description);
+            const newPassword = prompt('Enter new password (leave empty to keep current):', '');
+
+            fetch(`/api/classrooms/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: newName,
+                    description: newDesc,
+                    password: newPassword
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Classroom updated successfully!');
+                        loadClassrooms();
+                    } else {
+                        alert(data.error || 'Error updating classroom');
+                    }
+                })
+                .catch(error => console.error('Error updating classroom:', error));
+        }
+
+        function deleteClassroom(id) {
+            if (!confirm('Are you sure you want to delete this classroom? All students, quizzes, and results will be permanently removed.')) return;
+
+            fetch(`/api/classrooms/${id}`, { method: 'DELETE' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Classroom deleted successfully!');
+                        loadClassrooms();
+                    } else {
+                        alert(data.error || 'Error deleting classroom');
+                    }
+                })
+                .catch(error => console.error('Error deleting classroom:', error));
+        }
+
+        async function loadEnrolledStudents() {
+            try {
+                const response = await fetch(`/api/classrooms/${currentClassroomId}/students`);
+                const students = await response.json();
+
+                const studentsList = document.getElementById('studentsList');
+                studentsList.innerHTML = '';
+
+                if (students.length === 0) {
+                    studentsList.innerHTML = '<p>No students enrolled yet.</p>';
+                    return;
+                }
+
+                students.forEach(student => {
+                    const studentDiv = document.createElement('div');
+                    studentDiv.className = 'student-item';
+                    studentDiv.innerHTML = `
+                        <h5>${student.username}</h5>
+                        <p>Email: ${student.email}</p>
+                        <p>Section: ${student.section || 'N/A'}</p>
+                        <p>Enrolled: ${new Date(student.enrolled_at).toLocaleString()}</p>
+                        <button onclick="kickStudent(${student.id}, '${student.username}')" class="btn btn-danger">Kick Student</button>
+                    `;
+                    studentsList.appendChild(studentDiv);
+                });
+            } catch (error) {
+                console.error('Error loading students:', error);
+            }
+        }
+
+        function kickStudent(studentId, studentName) {
+            if (!confirm(`Are you sure you want to kick ${studentName} from this classroom?`)) return;
+
+            fetch(`/api/classrooms/${currentClassroomId}/students/${studentId}`, { method: 'DELETE' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Student kicked successfully!');
+                        loadEnrolledStudents();
+                    } else {
+                        alert(data.error || 'Error kicking student');
+                    }
+                })
+                .catch(error => console.error('Error kicking student:', error));
+        }
+
         async function loadClassroomFiles() {
             try {
                 const response = await fetch(`/api/classrooms/${currentClassroomId}/files`);
@@ -365,26 +468,34 @@
             e.preventDefault();
 
             const name = document.getElementById('classroomName').value;
-            const description = document.getElementById('classroomDesc').value;
+            const password = document.getElementById('classroomPassword').value;
 
             try {
                 const response = await fetch('/api/classrooms', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, description })
+                    body: JSON.stringify({ name, password })
                 });
+
+                const data = await response.json();
 
                 if (response.ok) {
                     document.getElementById('classroomSuccess').textContent = 'Classroom created successfully!';
                     document.getElementById('classroomSuccess').style.display = 'block';
+                    document.getElementById('classroomError').style.display = 'none';
                     document.getElementById('createClassroomForm').reset();
                     loadClassrooms();
                     setTimeout(() => {
                         document.getElementById('classroomSuccess').style.display = 'none';
                     }, 3000);
+                } else {
+                    document.getElementById('classroomError').textContent = data.error || 'Error creating classroom';
+                    document.getElementById('classroomError').style.display = 'block';
                 }
             } catch (error) {
                 console.error('Error creating classroom:', error);
+                document.getElementById('classroomError').textContent = 'Network error. Please try again.';
+                document.getElementById('classroomError').style.display = 'block';
             }
         });
 

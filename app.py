@@ -10,8 +10,8 @@ from functools import wraps
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-this-in-production'
 app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024 #200mb lang yung max ng file size na pwedeng i upload  
-#mga extensions na pwedeng i download o i upload
+app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  
+
 ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'xlsx', 'xls', 'ppt', 'pptx', 'txt', 'jpg', 'jpeg', 'png', 'gif'}
 
 # make sure na yung upload folder exists
@@ -29,7 +29,7 @@ def init_db():
     conn = get_db()
     c = conn.cursor()
     
-    # user database
+    # Users table
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
@@ -40,29 +40,56 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
-    # Classrooms database
+    # Classrooms table
     c.execute('''CREATE TABLE IF NOT EXISTS classrooms (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         teacher_id INTEGER NOT NULL,
         description TEXT,
+        password TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (teacher_id) REFERENCES users(id)
     )''')
     
-    # Student enrollment database
+    # Add password column if it doesn't exist (for existing databases)
+    try:
+        c.execute('ALTER TABLE classrooms ADD COLUMN password TEXT')
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
+    # Student enrollment
     c.execute('''CREATE TABLE IF NOT EXISTS enrollments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER NOT NULL,
         classroom_id INTEGER NOT NULL,
-        section TEXT NOT NULL,
+        section TEXT,
         enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (student_id) REFERENCES users(id),
         FOREIGN KEY (classroom_id) REFERENCES classrooms(id),
         UNIQUE(student_id, classroom_id)
     )''')
     
-    # database for quizess save
+    # Make section column nullable in existing databases
+    try:
+        c.execute('ALTER TABLE enrollments ADD COLUMN section_temp TEXT')
+        c.execute('UPDATE enrollments SET section_temp = section WHERE section IS NOT NULL')
+        c.execute('ALTER TABLE enrollments RENAME TO enrollments_old')
+        c.execute('''CREATE TABLE enrollments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            classroom_id INTEGER NOT NULL,
+            section TEXT,
+            enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (student_id) REFERENCES users(id),
+            FOREIGN KEY (classroom_id) REFERENCES classrooms(id),
+            UNIQUE(student_id, classroom_id)
+        )''')
+        c.execute('INSERT INTO enrollments (id, student_id, classroom_id, section, enrolled_at) SELECT id, student_id, classroom_id, section_temp, enrolled_at FROM enrollments_old')
+        c.execute('DROP TABLE enrollments_old')
+    except sqlite3.OperationalError:
+        pass  # Table already has nullable section
+    
+    # Quizzes table
     c.execute('''CREATE TABLE IF NOT EXISTS quizzes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         classroom_id INTEGER NOT NULL,
@@ -74,7 +101,7 @@ def init_db():
         FOREIGN KEY (classroom_id) REFERENCES classrooms(id)
     )''')
     
-    # database for questions
+    # Quiz questions
     c.execute('''CREATE TABLE IF NOT EXISTS questions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         quiz_id INTEGER NOT NULL,
@@ -86,7 +113,7 @@ def init_db():
         FOREIGN KEY (quiz_id) REFERENCES quizzes(id)
     )''')
     
-    #  database for answers
+    #  answers ng students
     c.execute('''CREATE TABLE IF NOT EXISTS answers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER NOT NULL,
@@ -100,7 +127,7 @@ def init_db():
         FOREIGN KEY (question_id) REFERENCES questions(id)
     )''')
     
-    # database for results
+    # ipakita ang result ng quiz
     c.execute('''CREATE TABLE IF NOT EXISTS quiz_results (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER NOT NULL,
@@ -114,7 +141,7 @@ def init_db():
         UNIQUE(student_id, quiz_id)
     )''')
     
-    # database para sa files uploaded
+    # Files table
     c.execute('''CREATE TABLE IF NOT EXISTS files (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         classroom_id INTEGER NOT NULL,
@@ -167,7 +194,7 @@ def index():
         else:
             return redirect(url_for('student_dashboard'))
     return redirect(url_for('login'))
-#display ang login page
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -193,7 +220,7 @@ def register():
             return jsonify({'error': 'Username or email already exists'}), 400
     
     return render_template('register.html')
-#display ang login page
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -213,17 +240,17 @@ def login():
         return jsonify({'error': 'Invalid username or password'}), 401
     
     return render_template('login.html')
-#logout functions redirect to the main login page
+
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('login'))
-#display the interface for teacher dashboard
+
 @app.route('/teacher/dashboard')
 @teacher_required
 def teacher_dashboard():
     return render_template('teacher_dashboard.html')
-#display the interface of student dashboard
+
 @app.route('/student/dashboard')
 @login_required
 def student_dashboard():
@@ -235,7 +262,7 @@ def student_dashboard():
         return redirect(url_for('teacher_dashboard'))
     
     return render_template('student_dashboard.html')
-#for user info
+
 @app.route('/api/user-info')
 @login_required
 def get_user_info():
@@ -250,7 +277,7 @@ def get_user_info():
         'role': user['role'],
         'section': user['section']
     })
-#for creating classroom
+
 @app.route('/api/classrooms', methods=['GET', 'POST'])
 @login_required
 def handle_classrooms():
@@ -265,14 +292,23 @@ def handle_classrooms():
         data = request.get_json()
         name = data.get('name')
         description = data.get('description', '')
+        password = data.get('password', '')
         
         if not name:
             return jsonify({'error': 'Classroom name is required'}), 400
         
         conn = get_db()
         c = conn.cursor()
-        c.execute('INSERT INTO classrooms (name, teacher_id, description) VALUES (?, ?, ?)',
-                 (name, session['user_id'], description))
+        
+        # Check if classroom with same name already exists for this teacher
+        existing = conn.execute('SELECT id FROM classrooms WHERE name = ? AND teacher_id = ?', 
+                              (name, session['user_id'])).fetchone()
+        if existing:
+            conn.close()
+            return jsonify({'error': 'This grade and section already exists. Please create a new one.'}), 400
+        
+        c.execute('INSERT INTO classrooms (name, teacher_id, description, password) VALUES (?, ?, ?, ?)',
+                 (name, session['user_id'], description, password))
         conn.commit()
         classroom_id = c.lastrowid
         conn.close()
@@ -307,7 +343,7 @@ def get_classroom(classroom_id):
         conn.close()
         return jsonify({'error': 'Classroom not found'}), 404
     
-    
+    # i Check yung kung may access
     user = conn.execute('SELECT role FROM users WHERE id = ?', (session['user_id'],)).fetchone()
     
     if user['role'] == 'teacher' and classroom['teacher_id'] != session['user_id']:
@@ -324,6 +360,107 @@ def get_classroom(classroom_id):
     conn.close()
     return jsonify(dict(classroom))
 
+@app.route('/api/classrooms/<int:classroom_id>', methods=['PUT', 'DELETE'])
+@login_required
+def modify_classroom(classroom_id):
+    conn = get_db()
+    classroom = conn.execute('SELECT * FROM classrooms WHERE id = ?', (classroom_id,)).fetchone()
+    
+    if not classroom:
+        conn.close()
+        return jsonify({'error': 'Classroom not found'}), 404
+    
+    user = conn.execute('SELECT role FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+    
+    if user['role'] != 'teacher' or classroom['teacher_id'] != session['user_id']:
+        conn.close()
+        return jsonify({'error': 'Access denied'}), 403
+    
+    if request.method == 'DELETE':
+        # Delete related data first
+        conn.execute('DELETE FROM answers WHERE quiz_id IN (SELECT id FROM quizzes WHERE classroom_id = ?)', (classroom_id,))
+        conn.execute('DELETE FROM quiz_results WHERE quiz_id IN (SELECT id FROM quizzes WHERE classroom_id = ?)', (classroom_id,))
+        conn.execute('DELETE FROM questions WHERE quiz_id IN (SELECT id FROM quizzes WHERE classroom_id = ?)', (classroom_id,))
+        conn.execute('DELETE FROM quizzes WHERE classroom_id = ?', (classroom_id,))
+        conn.execute('DELETE FROM enrollments WHERE classroom_id = ?', (classroom_id,))
+        conn.execute('DELETE FROM classrooms WHERE id = ?', (classroom_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True}), 200
+    
+    if request.method == 'PUT':
+        data = request.get_json()
+        name = data.get('name')
+        description = data.get('description', '')
+        password = data.get('password', '')
+        
+        if not name:
+            conn.close()
+            return jsonify({'error': 'Classroom name is required'}), 400
+        
+        conn.execute('UPDATE classrooms SET name = ?, description = ?, password = ? WHERE id = ?',
+                    (name, description, password, classroom_id))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True}), 200
+
+@app.route('/api/classrooms/<int:classroom_id>/students')
+@login_required
+def get_enrolled_students(classroom_id):
+    conn = get_db()
+    classroom = conn.execute('SELECT * FROM classrooms WHERE id = ?', (classroom_id,)).fetchone()
+    
+    if not classroom:
+        conn.close()
+        return jsonify({'error': 'Classroom not found'}), 404
+    
+    user = conn.execute('SELECT role FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+    
+    if user['role'] != 'teacher' or classroom['teacher_id'] != session['user_id']:
+        conn.close()
+        return jsonify({'error': 'Access denied'}), 403
+    
+    students = conn.execute('''
+        SELECT u.id, u.username, u.email, e.section, e.enrolled_at
+        FROM users u
+        JOIN enrollments e ON u.id = e.student_id
+        WHERE e.classroom_id = ?
+        ORDER BY e.enrolled_at DESC
+    ''', (classroom_id,)).fetchall()
+    
+    conn.close()
+    return jsonify([dict(s) for s in students])
+
+@app.route('/api/classrooms/<int:classroom_id>/students/<int:student_id>', methods=['DELETE'])
+@login_required
+def remove_student(classroom_id, student_id):
+    conn = get_db()
+    classroom = conn.execute('SELECT * FROM classrooms WHERE id = ?', (classroom_id,)).fetchone()
+    
+    if not classroom:
+        conn.close()
+        return jsonify({'error': 'Classroom not found'}), 404
+    
+    user = conn.execute('SELECT role FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+    
+    if user['role'] != 'teacher' or classroom['teacher_id'] != session['user_id']:
+        conn.close()
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Delete student's quiz results and answers for this classroom
+    conn.execute('DELETE FROM answers WHERE student_id = ? AND quiz_id IN (SELECT id FROM quizzes WHERE classroom_id = ?)', 
+                (student_id, classroom_id))
+    conn.execute('DELETE FROM quiz_results WHERE student_id = ? AND quiz_id IN (SELECT id FROM quizzes WHERE classroom_id = ?)', 
+                (student_id, classroom_id))
+    
+    # Remove enrollment
+    conn.execute('DELETE FROM enrollments WHERE student_id = ? AND classroom_id = ?', 
+                (student_id, classroom_id))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True}), 200
+
 @app.route('/api/classrooms/<int:classroom_id>/join', methods=['POST'])
 @login_required
 def join_classroom(classroom_id):
@@ -335,20 +472,22 @@ def join_classroom(classroom_id):
         return jsonify({'error': 'Only students can join classrooms'}), 403
     
     data = request.get_json()
-    section = data.get('section')
-    
-    if not section:
-        conn.close()
-        return jsonify({'error': 'Section is required'}), 400
+    password = data.get('password', '')
     
     classroom = conn.execute('SELECT * FROM classrooms WHERE id = ?', (classroom_id,)).fetchone()
     if not classroom:
         conn.close()
         return jsonify({'error': 'Classroom not found'}), 404
     
+    # Check classroom password if set
+    if classroom['password']:
+        if classroom['password'] != password:
+            conn.close()
+            return jsonify({'error': 'Invalid classroom password'}), 401
+    
     try:
         conn.execute('INSERT INTO enrollments (student_id, classroom_id, section) VALUES (?, ?, ?)',
-                    (session['user_id'], classroom_id, section))
+                    (session['user_id'], classroom_id, user['section']))
         conn.commit()
         conn.close()
         return jsonify({'success': True}), 201
@@ -369,7 +508,7 @@ def search_classrooms():
     conn.close()
     
     return jsonify([dict(c) for c in classrooms])
-#show UI inside of classrooom created by teachers
+
 @app.route('/api/classrooms/<int:classroom_id>/quizzes', methods=['GET', 'POST'])
 @login_required
 def handle_quizzes(classroom_id):
@@ -413,12 +552,12 @@ def handle_quizzes(classroom_id):
         
         return jsonify({'success': True, 'id': quiz_id}), 201
     
-   
+    # get ang request
     quizzes = conn.execute('SELECT * FROM quizzes WHERE classroom_id = ?', (classroom_id,)).fetchall()
     conn.close()
     
     return jsonify([dict(q) for q in quizzes])
-#for deleting and editing quiz
+
 @app.route('/api/quizzes/<int:quiz_id>', methods=['PUT', 'DELETE'])
 @login_required
 def modify_quiz(quiz_id):
@@ -471,7 +610,7 @@ def modify_quiz(quiz_id):
         conn.close()
         return jsonify({'success': True}), 200
 
-#main quiz 
+
 @app.route('/api/quizzes/<int:quiz_id>')
 @login_required
 def get_quiz(quiz_id):
@@ -518,7 +657,7 @@ def get_quiz(quiz_id):
     
     conn.close()
     return jsonify(quiz_data)
-#for submiting quiz
+
 @app.route('/api/quizzes/<int:quiz_id>/submit', methods=['POST'])
 @login_required
 def submit_quiz(quiz_id):
@@ -535,8 +674,7 @@ def submit_quiz(quiz_id):
         conn.close()
         return jsonify({'error': 'Only students can submit quizzes'}), 403
     
-    #check ang student if nakapag submit na ng quiz 
-    #this block of codes avoid retaking quiz if ang student ay nakapag take na ng isang beses
+    # Check if student has already submitted this quiz
     existing_result = conn.execute('SELECT * FROM quiz_results WHERE student_id = ? AND quiz_id = ?',
                                   (session['user_id'], quiz_id)).fetchone()
     if existing_result:
@@ -558,7 +696,7 @@ def submit_quiz(quiz_id):
         
         if is_correct:
             score += 1
-        # this block of codes show ang score at percentage ng student
+        
         c.execute('INSERT INTO answers (student_id, quiz_id, question_id, answer, is_correct) VALUES (?, ?, ?, ?, ?)',
                  (session['user_id'], quiz_id, q['id'], student_answer, is_correct))
     
@@ -571,7 +709,7 @@ def submit_quiz(quiz_id):
     conn.close()
     
     return jsonify({'success': True, 'score': score, 'total': total, 'percentage': percentage}), 201
-#show quiz results
+
 @app.route('/api/quizzes/<int:quiz_id>/results')
 @login_required
 def get_quiz_results(quiz_id):
@@ -625,7 +763,7 @@ def get_quiz_results(quiz_id):
     
     conn.close()
     return jsonify(results_data)
-#show and search classrooms
+
 @app.route('/api/classrooms/<int:classroom_id>/files', methods=['GET', 'POST'])
 @login_required
 def handle_files(classroom_id):
@@ -671,12 +809,12 @@ def handle_files(classroom_id):
         
         return jsonify({'success': True}), 201
     
-    
+    # get ang request
     files = conn.execute('SELECT * FROM files WHERE classroom_id = ?', (classroom_id,)).fetchall()
     conn.close()
     
     return jsonify([dict(f) for f in files])
-#for file downloading
+
 @app.route('/api/files/<int:file_id>/download')
 @login_required
 def download_file(file_id):
@@ -692,7 +830,7 @@ def download_file(file_id):
     
     if user['role'] == 'teacher' and classroom['teacher_id'] != session['user_id']:
         conn.close()
-        return jsonify({'error': 'Access deni
+        return jsonify({'error': 'Access denied'}), 403
     
     if user['role'] == 'student':
         enrollment = conn.execute('SELECT * FROM enrollments WHERE student_id = ? AND classroom_id = ?',
@@ -709,7 +847,7 @@ def download_file(file_id):
         return jsonify({'error': 'File not found on server'}), 404
     
     return send_file(filepath, as_attachment=True, download_name=file_record['original_filename'])
-#run the web app
+
 if __name__ == '__main__':
     init_db()
     app.run(debug=True, host='0.0.0.0', port=5000)
