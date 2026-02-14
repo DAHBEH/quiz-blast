@@ -35,6 +35,28 @@
     </div>
 
     <script>
+        // Sparkle effect on button click
+        document.addEventListener('click', function (e) {
+            if (e.target.classList.contains('btn')) {
+                const colors = ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD'];
+                for (let i = 0; i < 10; i++) {
+                    const sparkle = document.createElement('div');
+                    const angle = (Math.PI * 2 * i) / 10;
+                    const dist = 25 + Math.random() * 35;
+                    sparkle.style.cssText = `
+                        position: fixed; left: ${e.clientX}px; top: ${e.clientY}px;
+                        width: ${4 + Math.random() * 5}px; height: ${4 + Math.random() * 5}px;
+                        border-radius: 50%; pointer-events: none; z-index: 9999;
+                        background: ${colors[Math.floor(Math.random() * colors.length)]};
+                        --tx: ${Math.cos(angle) * dist}px; --ty: ${Math.sin(angle) * dist}px;
+                        animation: sparkleAnim 0.8s ease-out forwards;
+                    `;
+                    document.body.appendChild(sparkle);
+                    setTimeout(() => sparkle.remove(), 900);
+                }
+            }
+        });
+
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 

@@ -135,10 +135,33 @@ def init_db():
         score INTEGER,
         total_questions INTEGER,
         percentage REAL,
+        is_late BOOLEAN DEFAULT 0,
         completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (student_id) REFERENCES users(id),
         FOREIGN KEY (quiz_id) REFERENCES quizzes(id),
         UNIQUE(student_id, quiz_id)
+    )''')
+    
+    # Add is_late column if it doesn't exist (for existing databases)
+    try:
+        c.execute('ALTER TABLE quiz_results ADD COLUMN is_late BOOLEAN DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
+    # Files table
+    c.execute('''CREATE TABLE IF NOT EXISTS files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        classroom_id INTEGER NOT NULL,
+        filename TEXT NOT NULL,
+        original_filename TEXT NOT NULL,
+        custom_name TEXT NOT NULL,
+        title TEXT,
+        instructions TEXT,
+        deadline TIMESTAMP,
+        uploaded_by INTEGER NOT NULL,
+        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (classroom_id) REFERENCES classrooms(id),
+        FOREIGN KEY (uploaded_by) REFERENCES users(id)
     )''')
     
     # Announcements table
@@ -548,11 +571,27 @@ def handle_quizzes(classroom_id):
         
         return jsonify({'success': True, 'id': quiz_id}), 201
     
-    # get ang request
+    # get ang request - check if student has completed each quiz
     quizzes = conn.execute('SELECT * FROM quizzes WHERE classroom_id = ?', (classroom_id,)).fetchall()
+    
+    quizzes_list = []
+    for quiz in quizzes:
+        quiz_dict = dict(quiz)
+        # Check if student has already completed this quiz
+        result = conn.execute(
+            'SELECT id, score, total_questions, percentage FROM quiz_results WHERE student_id = ? AND quiz_id = ?',
+            (session['user_id'], quiz['id'])
+        ).fetchone()
+        quiz_dict['completed'] = result is not None
+        if result:
+            quiz_dict['previous_score'] = result['score']
+            quiz_dict['previous_total'] = result['total_questions']
+            quiz_dict['previous_percentage'] = result['percentage']
+        quizzes_list.append(quiz_dict)
+    
     conn.close()
     
-    return jsonify([dict(q) for q in quizzes])
+    return jsonify(quizzes_list)
 
 @app.route('/api/quizzes/<int:quiz_id>', methods=['PUT', 'DELETE'])
 @login_required
@@ -606,6 +645,32 @@ def modify_quiz(quiz_id):
         conn.close()
         return jsonify({'success': True}), 200
 
+
+@app.route('/api/quizzes/<int:quiz_id>/deadline', methods=['PUT'])
+@login_required
+def update_quiz_deadline(quiz_id):
+    conn = get_db()
+    quiz = conn.execute('SELECT * FROM quizzes WHERE id = ?', (quiz_id,)).fetchone()
+    
+    if not quiz:
+        conn.close()
+        return jsonify({'error': 'Quiz not found'}), 404
+    
+    classroom = conn.execute('SELECT * FROM classrooms WHERE id = ?', (quiz['classroom_id'],)).fetchone()
+    user = conn.execute('SELECT role FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+    
+    if user['role'] != 'teacher' or classroom['teacher_id'] != session['user_id']:
+        conn.close()
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json()
+    deadline = data.get('deadline')
+    
+    conn.execute('UPDATE quizzes SET deadline = ? WHERE id = ?', (deadline, quiz_id))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True}), 200
 
 @app.route('/api/quizzes/<int:quiz_id>')
 @login_required
@@ -698,13 +763,19 @@ def submit_quiz(quiz_id):
     
     percentage = (score / total * 100) if total > 0 else 0
     
-    c.execute('INSERT INTO quiz_results (student_id, quiz_id, score, total_questions, percentage) VALUES (?, ?, ?, ?, ?)',
-             (session['user_id'], quiz_id, score, total, percentage))
+    # Check if submission is late
+    is_late = False
+    if quiz['deadline']:
+        deadline_dt = datetime.strptime(quiz['deadline'], '%Y-%m-%d %H:%M:%S') if ' ' in quiz['deadline'] else datetime.fromisoformat(quiz['deadline'].replace('T', ' '))
+        is_late = datetime.now() > deadline_dt
+    
+    c.execute('INSERT INTO quiz_results (student_id, quiz_id, score, total_questions, percentage, is_late) VALUES (?, ?, ?, ?, ?, ?)',
+             (session['user_id'], quiz_id, score, total, percentage, is_late))
     
     conn.commit()
     conn.close()
     
-    return jsonify({'success': True, 'score': score, 'total': total, 'percentage': percentage}), 201
+    return jsonify({'success': True, 'score': score, 'total': total, 'percentage': percentage, 'is_late': is_late}), 201
 
 @app.route('/api/quizzes/<int:quiz_id>/results')
 @login_required
@@ -740,6 +811,7 @@ def get_quiz_results(quiz_id):
                 'score': r['score'],
                 'total': r['total_questions'],
                 'percentage': r['percentage'],
+                'is_late': r['is_late'] if 'is_late' in r.keys() else False,
                 'completed_at': r['completed_at']
             }
             for r in results

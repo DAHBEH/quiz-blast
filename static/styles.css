@@ -215,8 +215,38 @@ body {
 }
 
 .dashboard-header h2 {
+    display: inline-block;
     color: #667eea;
+    font-family: monospace;
     font-size: 32px;
+    white-space: nowrap;
+    overflow: hidden;
+    border-right: 3px solid;
+    animation: typing 1.8s steps(15) forwards;
+
+
+}
+
+@keyframes typing {
+    from {
+        width: 0;
+
+    }
+
+    to {
+        width: 100%;
+
+    }
+
+}
+
+@keyframes blink {
+
+    0%,
+    100% {
+        border-color: transparent;
+    }
+
 
 }
 
@@ -348,10 +378,13 @@ body {
 .tab-button.active {
     color: #667eea;
     border-bottom-color: #667eea;
+    box-shadow: 5px 0 0 #667eea, -5px 0 0 #667eea;
 }
 
 .tab-button:hover {
-    color: #667eea;
+    color: #30d338;
+    box-shadow: #3cff00 rgb(104, 194, 224);
+
 }
 
 .tab-content {
@@ -563,6 +596,26 @@ body {
 .quiz-item .btn,
 .file-item .btn {
     margin-top: 12px;
+}
+
+/* Completed Quiz Styles */
+.completed-quiz {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 6px;
+    padding: 15px;
+    margin-top: 10px;
+}
+
+.completed-message {
+    color: #155724;
+    font-weight: bold;
+    margin-bottom: 8px !important;
+}
+
+.previous-score {
+    color: #155724;
+    font-size: 14px;
 }
 
 .student-item {
@@ -941,4 +994,107 @@ body {
         opacity: 1;
         transform: translate(-50%, -50%) scale(1);
     }
+}
+
+/* ==================== SPARKLE EFFECTS ==================== */
+.sparkle-container {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+}
+
+.sparkle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: sparkleAnim 0.8s ease-out forwards;
+    pointer-events: none;
+}
+
+@keyframes sparkleAnim {
+    0% {
+        opacity: 1;
+        transform: scale(1) translate(0, 0);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(0) translate(var(--tx), var(--ty));
+    }
+}
+
+/* Explosion overlay */
+.explosion-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9998;
+    background: radial-gradient(circle, rgba(255, 69, 0, 0.4) 0%, rgba(255, 165, 0, 0.2) 40%, transparent 70%);
+    animation: explosionFlash 1s ease-out forwards;
+}
+
+@keyframes explosionFlash {
+    0% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}
+
+.explosion-particle {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    animation: explodeParticle 1.2s ease-out forwards;
+}
+
+@keyframes explodeParticle {
+    0% {
+        opacity: 1;
+        transform: translate(0, 0) scale(1);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate(var(--ex), var(--ey)) scale(0);
+    }
+}
+
+/* Deadline styles */
+.deadline-passed {
+    color: #dc3545 !important;
+    font-weight: bold;
+}
+
+.deadline-active {
+    color: #28a745 !important;
+    font-weight: bold;
+}
+
+.deadline-warning {
+    background: #fff3cd;
+    color: #856404;
+    padding: 10px 15px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    border: 1px solid #ffc107;
+    text-align: center;
+    font-weight: 600;
+}
+
+/* Quiz leave button */
+.btn-leave {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-leave:hover {
+    background: #5a6268;
+    transform: translateY(-2px);
 }
