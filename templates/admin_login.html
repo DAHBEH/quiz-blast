@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - Quiz App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #33a1eb 0%, #0e3d96 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .login-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            background-image: url("/static/image.jpg");
+            background-size: 50px;
+            background-repeat: no-repeat;
+            background-position: left center;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #555;
+            font-weight: 600;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .btn:hover {
+            background: #5568d3;
+        }
+
+        .error {
+            color: red;
+            margin-top: 1rem;
+            text-align: center;
+        }
+
+        .success {
+            color: green;
+            margin-top: 1rem;
+            text-align: center;
+        }
+
+        .back-link {
+            text-align: center;
+            margin-top: 1rem;
+        }
+
+        .back-link a {
+            color: #667eea;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-container">
+        <h1> Admin Login</h1>
+        <form id="loginForm">
+            <div class="form-group">
+                <label>Secret Key</label>
+                <input type="password" id="secretKey" placeholder="Enter admin secret key" required>
+            </div>
+            <button type="submit" class="btn">Login</button>
+            <div id="message"></div>
+        </form>
+        <div class="back-link">
+            <a href="/login">← Back to User Login</a>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const secretKey = document.getElementById('secretKey').value;
+            const message = document.getElementById('message');
+
+            try {
+                const response = await fetch('/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ secret_key: secretKey })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    message.className = 'success';
+                    message.textContent = 'Login successful! Redirecting...';
+                    setTimeout(() => {
+                        window.location.href = '/admin';
+                    }, 500);
+                } else {
+                    message.className = 'error';
+                    message.textContent = data.error || 'Invalid secret key';
+                }
+            } catch (err) {
+                message.className = 'error';
+                message.textContent = 'Connection error. Please try again.';
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -21,7 +21,7 @@
 
     <div class="container">
         <div class="dashboard-header">
-            <h2>- - -Welcome to Teacher Dashboard- - -</h2>
+            <h2>Welcome to Teacher Dashboard</h2>
         </div>
 
         <div class="dashboard-content">
@@ -81,10 +81,12 @@
                     </div>
                     <div class="form-group">
                         <label for="quizType">Quiz Type:</label>
-                        <select id="quizType" required>
+                        <select id="quizType" required onchange="updateQuestionForm()">
                             <option value="">Select type</option>
                             <option value="multiple-choice">Multiple Choice</option>
                             <option value="true-false">True/False</option>
+                            <option value="image-analyzing">Image Analyzing</option>
+                            <option value="fill-blanks">Fill in the Blanks</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -113,10 +115,12 @@
                     </div>
                     <div class="form-group">
                         <label for="editQuizType">Quiz Type:</label>
-                        <select id="editQuizType" required>
+                        <select id="editQuizType" required onchange="updateEditQuestionForm()">
                             <option value="">Select type</option>
                             <option value="multiple-choice">Multiple Choice</option>
                             <option value="true-false">True/False</option>
+                            <option value="image-analyzing">Image Analyzing</option>
+                            <option value="fill-blanks">Fill in the Blanks</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -335,16 +339,37 @@
                     const questionDiv = document.createElement('div');
                     questionDiv.className = 'question-form';
                     questionDiv.style.position = 'relative';
-                    questionDiv.innerHTML = `
-                        <button type="button" class="btn btn-danger" onclick="removeEditQuestion(this)" style="position: absolute; top: 10px; right: 10px; padding: 5px 10px; font-size: 12px;">Delete Question</button>
-                        <h5>Question ${index + 1}</h5>
-                        <input type="text" placeholder="Question text" class="question-text" value="${q.question_text.replace(/"/g, '&quot;')}" required>
-                        ${quiz.quiz_type === 'multiple-choice' ? `
+
+                    let extraFields = '';
+                    if (quiz.quiz_type === 'multiple-choice') {
+                        extraFields = `
                             <input type="text" placeholder="Option 1" class="option" value="${(q.options[0] || '').replace(/"/g, '&quot;')}" required>
                             <input type="text" placeholder="Option 2" class="option" value="${(q.options[1] || '').replace(/"/g, '&quot;')}" required>
                             <input type="text" placeholder="Option 3" class="option" value="${(q.options[2] || '').replace(/"/g, '&quot;')}" required>
                             <input type="text" placeholder="Option 4" class="option" value="${(q.options[3] || '').replace(/"/g, '&quot;')}" required>
-                        ` : ''}
+                        `;
+                    } else if (quiz.quiz_type === 'image-analyzing') {
+                        extraFields = `
+                            ${q.image_path ? `<div class="image-preview-container" style="margin: 10px 0;"><img src="/uploads/${q.image_path}" alt="Question Image" style="max-width: 200px; max-height: 150px; border-radius: 8px; border: 2px solid #ddd;"><p class="image-status" style="font-size: 12px; color: green;">✓ Image uploaded</p></div>` : ''}
+                            <input type="file" accept="image/*" class="question-image" onchange="handleEditImageUpload(this)">
+                            <input type="hidden" class="image-path" value="${q.image_path || ''}">
+                            <p class="image-status" style="font-size: 12px; color: gray;"></p>
+                            <input type="text" placeholder="Option 1" class="option" value="${(q.options[0] || '').replace(/"/g, '&quot;')}" required>
+                            <input type="text" placeholder="Option 2" class="option" value="${(q.options[1] || '').replace(/"/g, '&quot;')}" required>
+                            <input type="text" placeholder="Option 3" class="option" value="${(q.options[2] || '').replace(/"/g, '&quot;')}" required>
+                            <input type="text" placeholder="Option 4" class="option" value="${(q.options[3] || '').replace(/"/g, '&quot;')}" required>
+                        `;
+                    } else if (quiz.quiz_type === 'fill-blanks') {
+                        extraFields = `
+                            <p style="font-size: 12px; color: gray;">Students must type the exact answer (case-sensitive)</p>
+                        `;
+                    }
+
+                    questionDiv.innerHTML = `
+                        <button type="button" class="btn btn-danger" onclick="removeEditQuestion(this)" style="position: absolute; top: 10px; right: 10px; padding: 5px 10px; font-size: 12px;">Delete Question</button>
+                        <h5>Question ${index + 1}</h5>
+                        <input type="text" placeholder="Question text" class="question-text" value="${q.question_text.replace(/"/g, '&quot;')}" required>
+                        ${extraFields}
                         <input type="text" placeholder="Correct answer" class="correct-answer" value="${q.correct_answer.replace(/"/g, '&quot;')}" required>
                     `;
                     container.appendChild(questionDiv);
@@ -385,19 +410,83 @@
             const questionDiv = document.createElement('div');
             questionDiv.className = 'question-form';
             questionDiv.style.position = 'relative';
-            questionDiv.innerHTML = `
-                <button type="button" class="btn btn-danger" onclick="removeEditQuestion(this)" style="position: absolute; top: 10px; right: 10px; padding: 5px 10px; font-size: 12px;">Delete Question</button>
-                <h5>Question ${questionIndex}</h5>
-                <input type="text" placeholder="Question text" class="question-text" required>
-                ${quizType === 'multiple-choice' ? `
+
+            let extraFields = '';
+            if (quizType === 'multiple-choice') {
+                extraFields = `
                     <input type="text" placeholder="Option 1" class="option" required>
                     <input type="text" placeholder="Option 2" class="option" required>
                     <input type="text" placeholder="Option 3" class="option" required>
                     <input type="text" placeholder="Option 4" class="option" required>
-                ` : ''}
+                `;
+            } else if (quizType === 'image-analyzing') {
+                extraFields = `
+                    <input type="file" accept="image/*" class="question-image" onchange="handleEditImageUpload(this)" required>
+                    <input type="hidden" class="image-path">
+                    <p class="image-status" style="font-size: 12px; color: gray;"></p>
+                    <input type="text" placeholder="Option 1" class="option" required>
+                    <input type="text" placeholder="Option 2" class="option" required>
+                    <input type="text" placeholder="Option 3" class="option" required>
+                    <input type="text" placeholder="Option 4" class="option" required>
+                `;
+            } else if (quizType === 'fill-blanks') {
+                extraFields = `
+                    <p style="font-size: 12px; color: gray;">Students must type the exact answer </p>
+                `;
+            }
+
+            questionDiv.innerHTML = `
+                <button type="button" class="btn btn-danger" onclick="removeEditQuestion(this)" style="position: absolute; top: 10px; right: 10px; padding: 5px 10px; font-size: 12px;">Delete Question</button>
+                <h5>Question ${questionIndex}</h5>
+                <input type="text" placeholder="Question text" class="question-text" required>
+                ${extraFields}
                 <input type="text" placeholder="Correct answer" class="correct-answer" required>
             `;
             container.appendChild(questionDiv);
+        }
+
+        async function handleEditImageUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const statusEl = input.parentElement.querySelector('.image-status');
+            const hiddenPath = input.parentElement.querySelector('.image-path');
+
+            statusEl.textContent = 'Uploading...';
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const response = await fetch('/api/quiz/upload-image', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    hiddenPath.value = data.image_path;
+                    // Create or update image preview
+                    let previewContainer = input.parentElement.querySelector('.image-preview-container');
+                    if (!previewContainer) {
+                        previewContainer = document.createElement('div');
+                        previewContainer.className = 'image-preview-container';
+                        previewContainer.style.margin = '10px 0';
+                        input.parentElement.insertBefore(previewContainer, input);
+                    }
+                    previewContainer.innerHTML = `<img src="/uploads/${data.image_path}" alt="Question Image" style="max-width: 200px; max-height: 150px; border-radius: 8px; border: 2px solid #ddd;">`;
+                    statusEl.textContent = '✓ Image uploaded successfully';
+                    statusEl.style.color = 'green';
+                } else {
+                    statusEl.textContent = 'Error: ' + (data.error || 'Upload failed');
+                    statusEl.style.color = 'red';
+                    input.value = '';
+                }
+            } catch (error) {
+                statusEl.textContent = 'Error: Network error';
+                statusEl.style.color = 'red';
+                input.value = '';
+            }
         }
 
         function cancelEditQuiz() {
@@ -454,15 +543,18 @@
             if (!newName) return;
 
 
-            const newPassword = prompt('Enter new password (leave empty to keep current):', '');
+            const newPassword = prompt('Enter new password (leave empty to keep current):', password);
+            if (newPassword === null) return;
+
+            // If user leaves password empty, keep the current password
+            const passwordToSend = newPassword === '' ? password : newPassword;
 
             fetch(`/api/classrooms/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: newName,
-                    description: newDesc,
-                    password: newPassword
+                    password: passwordToSend
                 })
             })
                 .then(response => response.json())
@@ -596,19 +688,83 @@
             const questionDiv = document.createElement('div');
             questionDiv.className = 'question-form';
             questionDiv.style.position = 'relative';
-            questionDiv.innerHTML = `
-                <button type="button" class="btn btn-danger" onclick="removeQuestion(this)" style="position: absolute; top: 10px; right: 10px; padding: 5px 10px; font-size: 12px;">Delete Question</button>
-                <h5>Question ${questionIndex}</h5>
-                <input type="text" placeholder="Question text" class="question-text" required>
-                ${quizType === 'multiple-choice' ? `
+
+            let extraFields = '';
+            if (quizType === 'multiple-choice') {
+                extraFields = `
                     <input type="text" placeholder="Option 1" class="option" required>
                     <input type="text" placeholder="Option 2" class="option" required>
                     <input type="text" placeholder="Option 3" class="option" required>
                     <input type="text" placeholder="Option 4" class="option" required>
-                ` : ''}
+                `;
+            } else if (quizType === 'image-analyzing') {
+                extraFields = `
+                    <input type="file" accept="image/*" class="question-image" onchange="handleImageUpload(this)" required>
+                    <input type="hidden" class="image-path">
+                    <p class="image-status" style="font-size: 12px; color: gray;"></p>
+                    <input type="text" placeholder="Option 1" class="option" required>
+                    <input type="text" placeholder="Option 2" class="option" required>
+                    <input type="text" placeholder="Option 3" class="option" required>
+                    <input type="text" placeholder="Option 4" class="option" required>
+                `;
+            } else if (quizType === 'fill-blanks') {
+                extraFields = `
+                    <p style="font-size: 12px; color: gray;">Students must type the exact answer</p>
+                `;
+            }
+
+            questionDiv.innerHTML = `
+                <button type="button" class="btn btn-danger" onclick="removeQuestion(this)" style="position: absolute; top: 10px; right: 10px; padding: 5px 10px; font-size: 12px;">Delete Question</button>
+                <h5>Question ${questionIndex}</h5>
+                <input type="text" placeholder="Question text" class="question-text" required>
+                ${extraFields}
                 <input type="text" placeholder="Correct answer" class="correct-answer" required>
             `;
             container.appendChild(questionDiv);
+        }
+
+        async function handleImageUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const statusEl = input.parentElement.querySelector('.image-status');
+            const hiddenPath = input.parentElement.querySelector('.image-path');
+
+            statusEl.textContent = 'Uploading...';
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const response = await fetch('/api/quiz/upload-image', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    hiddenPath.value = data.image_path;
+                    // Create or update image preview
+                    let previewContainer = input.parentElement.querySelector('.image-preview-container');
+                    if (!previewContainer) {
+                        previewContainer = document.createElement('div');
+                        previewContainer.className = 'image-preview-container';
+                        previewContainer.style.margin = '10px 0';
+                        input.parentElement.insertBefore(previewContainer, input);
+                    }
+                    previewContainer.innerHTML = `<img src="/uploads/${data.image_path}" alt="Question Image" style="max-width: 200px; max-height: 150px; border-radius: 8px; border: 2px solid #ddd;">`;
+                    statusEl.textContent = '✓ Image uploaded successfully';
+                    statusEl.style.color = 'green';
+                } else {
+                    statusEl.textContent = 'Error: ' + (data.error || 'Upload failed');
+                    statusEl.style.color = 'red';
+                    input.value = '';
+                }
+            } catch (error) {
+                statusEl.textContent = 'Error: Network error';
+                statusEl.style.color = 'red';
+                input.value = '';
+            }
         }
 
         function removeQuestion(btn) {
@@ -670,12 +826,15 @@
                 const question_text = form.querySelector('.question-text').value;
                 const options = Array.from(form.querySelectorAll('.option')).map(o => o.value).filter(o => o);
                 const correct_answer = form.querySelector('.correct-answer').value;
+                const image_path_input = form.querySelector('.image-path');
+                const image_path = image_path_input ? image_path_input.value : null;
 
                 questions.push({
                     question: question_text,
                     type: quiz_type,
                     options: options,
-                    correct_answer: correct_answer
+                    correct_answer: correct_answer,
+                    image_path: image_path
                 });
             });
 
@@ -726,12 +885,15 @@
                 const question_text = form.querySelector('.question-text').value;
                 const options = Array.from(form.querySelectorAll('.option')).map(o => o.value).filter(o => o);
                 const correct_answer = form.querySelector('.correct-answer').value;
+                const image_path_input = form.querySelector('.image-path');
+                const image_path = image_path_input ? image_path_input.value : null;
 
                 questions.push({
                     question: question_text,
                     type: quiz_type,
                     options: options,
-                    correct_answer: correct_answer
+                    correct_answer: correct_answer,
+                    image_path: image_path
                 });
             });
 

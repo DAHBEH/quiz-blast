@@ -21,7 +21,7 @@
 
     <div class="container">
         <div class="dashboard-header">
-            <h2>- - -Welcome to Student Dashboard- - -</h2>
+            <h2>Welcome to Student Dashboard</h2>
         </div>
 
         <div class="dashboard-content">
@@ -415,7 +415,7 @@
                     const deadlineDate = new Date(deadline);
                     const now = new Date();
                     if (now > deadlineDate) {
-                        warningEl.textContent = '⚠️ This quiz is past its deadline! Your submission will be marked as late.';
+                        warningEl.textContent = ' This quiz is past its deadline! Your submission will be marked as late.';
                         warningEl.style.display = 'block';
                     } else {
                         warningEl.style.display = 'none';
@@ -441,8 +441,14 @@
             const question = quizQuestions[currentQuestionIndex];
             document.getElementById('questionCounter').textContent = `Question ${currentQuestionIndex + 1} of ${quizQuestions.length}`;
 
-            let questionHTML = `<div class="question">
-                <p><strong>${question.question_text}</strong></p>`;
+            let questionHTML = `<div class="question">`;
+
+            // Add image for image-analyzing questions
+            if (question.question_type === 'image-analyzing' && question.image_path) {
+                questionHTML += `<img src="/uploads/${question.image_path}" alt="Question Image" style="max-width: 100%; max-height: 300px; margin: 10px 0; border-radius: 8px;">`;
+            }
+
+            questionHTML += `<p><strong>${question.question_text}</strong></p>`;
 
             if (question.question_type === 'multiple-choice') {
                 questionHTML += `<div class="options">`;
@@ -469,10 +475,39 @@
                         False
                     </label>
                 `;
+            } else if (question.question_type === 'image-analyzing') {
+                // Image analyzing has 4 options like multiple choice
+                questionHTML += `<div class="options">`;
+                question.options.forEach(option => {
+                    const isSelected = quizAnswers[question.id] === option ? 'checked' : '';
+                    questionHTML += `
+                        <label>
+                            <input type="radio" name="answer_${question.id}" value="${option}" ${isSelected} onchange="saveAnswer(${question.id}, '${option}')">
+                            ${option}
+                        </label>
+                    `;
+                });
+                questionHTML += `</div>`;
+            } else if (question.question_type === 'fill-blanks') {
+                const currentAnswer = quizAnswers[question.id] || '';
+                questionHTML += `
+                    <div class="fill-blanks-input">
+                        <input type="text" id="fill-blanks-${question.id}" 
+                               placeholder="Type your answer here..." 
+                               value="${currentAnswer}" 
+                               onchange="saveFillBlanksAnswer(${question.id}, this.value)"
+                               style="width: 100%; padding: 10px; font-size: 16px; border: 1px solid #ddd; border-radius: 4px;">
+                        <p style="font-size: 12px; color: #666; margin-top: 5px;">Note: spelling and letter captilazition must be correct.</p>
+                    </div>
+                `;
             }
 
             questionHTML += `</div>`;
             document.getElementById('questionDisplay').innerHTML = questionHTML;
+        }
+
+        function saveFillBlanksAnswer(questionId, answer) {
+            quizAnswers[questionId] = answer;
         }
 
         function saveAnswer(questionId, answer) {
